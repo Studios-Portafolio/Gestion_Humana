@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String          @id @default(uuid())
+  email            String          @unique
+  fullName         String
+  role             Role            @default(EMPLOYEE)
+  isActive         Boolean         @default(true)
+  currentChallenge String?         // <-- Nuevo: Para el desafío biométrico
+  authenticators   Authenticator[] // <-- Nuevo: Relación con sus huellas
+  contracts        Contract[]
+  auditLogs        AuditLog[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+// <-- NUEVA TABLA: Guarda la llave pública de la huella/FaceID
+model Authenticator {
+  credentialID         String  @id
+  credentialPublicKey  Bytes
+  counter              BigInt
+  credentialDeviceType String
+  credentialBackedUp   Boolean
+  transports           String?
+  userId               String
+  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Contract {
+  id           String   @id @default(uuid())
+  userId       String
+  content      String
+  documentHash String
+  status       String   @default("DRAFT")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  ipAddress String
+  endpoint  String
+  timestamp DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  HR_MANAGER
+  EMPLOYEE
+}
