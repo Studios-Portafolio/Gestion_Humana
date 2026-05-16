@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const prisma = new PrismaClient();
 
-// Inicializamos el nuevo cerebro de la bóveda con tu llave de Gemini
+// Inicializamos el cerebro de la bóveda con tu llave de Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export const processDocumentOCR = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -22,15 +22,15 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
-    console.log(`📸 Analizando documento REAL para: ${email} usando Gemini 1.5 Flash...`);
+    console.log(`📸 Analizando documento REAL para: ${email} usando Gemini 1.5 Flash Latest...`);
 
     // 1. Convertimos la imagen de la memoria RAM a formato Base64
     const base64Image = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype;
 
-    // 2. Preparamos el modelo y FORZAMOS una respuesta 100% JSON nativa
+    // 2. Preparamos el modelo con el nombre EXACTO que exige Google (latest)
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
+      model: "gemini-1.5-flash-latest",
       generationConfig: { responseMimeType: "application/json" }
     });
 
