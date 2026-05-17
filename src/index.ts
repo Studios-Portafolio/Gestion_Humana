@@ -11,7 +11,7 @@ import { getAuditLogs } from './controllers/audit.controller';
 import { login, refreshSession } from './controllers/auth.controller'; 
 import { processDocumentOCR } from './controllers/ocr.controller';
 import { generateRegistration, verifyRegistration } from './controllers/webauthn.controller';
-import { getAllEmployees, getEmployeeById } from './controllers/employee.controller'; // UNIFICADO: Importación de tu directorio
+import { getAllEmployees, getEmployeeById } from './controllers/employee.controller'; 
 
 // Middlewares
 import { requireAuth, requireAdmin } from './middlewares/auth.middleware';
@@ -25,6 +25,10 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// VITAL PARA RENDER: Le dice a Express que confíe en el balanceador de carga de la nube
+// Esto evita que todos los usuarios compartan la misma IP corporativa ante el Rate Limiter
+app.set('trust proxy', 1);
 
 app.use(helmet()); 
 
@@ -53,10 +57,13 @@ app.use((req, res, next) => {
 });
 // ------------------------------------------------------
 
+// Configuración optimizada para Fase de Desarrollo/Testing masivo
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
-  max: 100, 
+  max: 1000, // Incrementado a 1000 para evitar bloqueos por bucles de renderizado en el front
   message: 'Demasiadas peticiones desde esta IP, por favor intente de nuevo en 15 minutos.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use(limiter);
 
@@ -76,7 +83,7 @@ app.get('/api/audit', requireAuth, requireAdmin, getAuditLogs);
 // 3. Módulo de Onboarding (Escáner OCR con IA via OpenRouter)
 app.post('/api/ocr/process', requireAuth, upload.single('document'), processDocumentOCR);
 
-// 4. UNIFICADO: Módulo de Directorio General y Expedientes (Sincronizado con Harvein)
+// 4. Módulo de Directorio General y Expedientes (Sincronizado con Harvein)
 app.get('/api/employees', requireAuth, getAllEmployees);
 app.get('/api/employees/:id', requireAuth, getEmployeeById);
 
@@ -87,5 +94,5 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(PORT as number, '0.0.0.0', () => {
-  console.log(`[The Fortress] Server running securely on port ${PORT} across local network`);
+  console.log(`[The Fortress] Server running securely on port ${PORT} across network`);
 });
