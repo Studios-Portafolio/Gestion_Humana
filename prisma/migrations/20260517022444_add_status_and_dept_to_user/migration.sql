@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "dept" TEXT NOT NULL DEFAULT 'Desarrollo',
+ADD COLUMN     "status" TEXT NOT NULL DEFAULT 'ACTIVO';

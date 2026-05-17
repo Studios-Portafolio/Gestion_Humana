@@ -11,7 +11,7 @@ import { getAuditLogs } from './controllers/audit.controller';
 import { login, refreshSession } from './controllers/auth.controller'; 
 import { processDocumentOCR } from './controllers/ocr.controller';
 import { generateRegistration, verifyRegistration } from './controllers/webauthn.controller';
-import { getAllEmployees, getEmployeeById, deleteEmployee } from './controllers/employee.controller'; // UNIFICADO: Importamos deleteEmployee
+import { getAllEmployees, getEmployeeById, updateEmployee, deleteEmployee } from './controllers/employee.controller'; // UNIFICADO: Importamos updateEmployee
 
 // Middlewares
 import { requireAuth, requireAdmin } from './middlewares/auth.middleware';
@@ -78,10 +78,11 @@ app.get('/api/audit', requireAuth, requireAdmin, getAuditLogs);
 // 3. Módulo de Onboarding (Escáner OCR con IA via OpenRouter)
 app.post('/api/ocr/process', requireAuth, upload.single('document'), processDocumentOCR);
 
-// 4. Módulo de Directorio General, Expedientes y Remoción
+// 4. Módulo de Directorio General, Expedientes, Modificación y Remoción
 app.get('/api/employees', requireAuth, getAllEmployees);
 app.get('/api/employees/:id', requireAuth, getEmployeeById);
-app.delete('/api/employees/:id', requireAuth, deleteEmployee); // UNIFICADO: Cableamos la ruta DELETE requerida por Harvein
+app.put('/api/employees/:id', requireAuth, updateEmployee); // CABLEADO: Endpoint PUT activo para el modal de Harvein
+app.delete('/api/employees/:id', requireAuth, deleteEmployee); 
 
 // ---------------------------------------------
 

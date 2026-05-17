@@ -13,9 +13,11 @@ model User {
   fullName         String
   role             Role            @default(EMPLOYEE)
   isActive         Boolean         @default(true)
-  // --- CAMPOS REALES DE EXTRACTOR OCR ---
-  idNumber         String?         // Cédula guardada en Neon DB por la IA
-  birthDate        String?         // Fecha de nacimiento guardada en Neon DB por la IA
+  // --- NUEVOS CAMPOS PARA EL DASHBOARD Y MODAL DE EDICIÓN ---
+  status           String          @default("ACTIVO") // ACTIVO, REPOSO, VACACIONES, INACTIVO
+  dept             String          @default("Desarrollo") // Departamento real guardado en DB
+  idNumber         String?         // Cédula guardada por el OCR
+  birthDate        String?         // Fecha de nacimiento guardada por el OCR
   currentChallenge String?         // Para el desafío biométrico WebAuthn
   authenticators   Authenticator[] // Relación con sus huellas / FaceID
   contracts        Contract[]
@@ -43,7 +45,6 @@ model Contract {
   status       String   @default("DRAFT")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  // CASCADA: Evita errores 500 limpiando contratos si el usuario es eliminado
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -54,7 +55,6 @@ model AuditLog {
   ipAddress String
   endpoint  String
   timestamp DateTime @default(now())
-  // CASCADA: Evita errores 500 limpiando logs si el usuario es eliminado
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
