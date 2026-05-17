@@ -10,7 +10,7 @@ import { createContract, getContracts } from './controllers/contract.controller'
 import { getAuditLogs } from './controllers/audit.controller';
 import { login, refreshSession } from './controllers/auth.controller'; 
 import { processDocumentOCR } from './controllers/ocr.controller';
-import { generateRegistration, verifyRegistration, generateAuthentication, verifyAuthentication } from './controllers/webauthn.controller'; 
+import { generateRegistration, verifyRegistration, generateAuthentication, verifyAuthentication, getBcvRate } from './controllers/webauthn.controller'; 
 import { getAllEmployees, getEmployeeById, createEmployee, updateEmployee, deleteEmployee } from './controllers/employee.controller'; 
 
 // Middlewares
@@ -43,20 +43,18 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser()); 
 
-// --- 📡 EL RADAR: Monitor de Tráfico en Tiempo Real ---
+// --- 📡 MONITOR DE TRÁFICO ---
 app.use((req, res, next) => {
   if (req.url.startsWith('/api')) {
-    const ip = req.ip || req.socket.remoteAddress || 'IP desconocida';
-    console.log(`[RADAR] 🟢 Alguien disparó: ${req.method} ${req.url} | Desde la IP: ${ip}`);
+    console.log(`[RADAR] 🟢 Acción detectada: ${req.method} ${req.url}`);
   }
   next();
 });
-// ------------------------------------------------------
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
   max: 1000, 
-  message: 'Demasiadas peticiones desde esta IP, por favor intente de nuevo en 15 minutos.',
+  message: 'Demasiadas peticiones desde esta IP.',
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -64,26 +62,25 @@ app.use(limiter);
 
 // --- 🛠️ ENRUTADOR MAESTRO DE THE FORTRESS ---
 
-// 1. Módulo de Autenticación y Sesiones Tradicionales / Biométricas
+// 1. Autenticación, Sesiones y Utilidades
 app.post('/api/auth/login', validateSchema(loginSchema), login);
 app.post('/api/auth/refresh', refreshSession); 
+app.get('/api/utils/bcv', getBcvRate); // NUEVO: Endpoint para que la vista de nómina lea el dólar automático
 
-// Todo el set completo de WebAuthn v10 (Registro + Login)
-app.post('/api/auth/biometrics/generate', generateRegistration);
+// 2. Suite Completa de Biometría WebAuthn v10 (Alineada con el Frontend de Harvein)
+app.get('/api/auth/biometrics/register-options', generateRegistration);  // ALINEADO: Soporta la consulta GET de Harvein
+app.post('/api/auth/biometrics/register-options', generateRegistration); // Soporta fallback POST
 app.post('/api/auth/biometrics/verify', verifyRegistration);
 app.post('/api/auth/biometrics/login/generate', generateAuthentication); 
 app.post('/api/auth/biometrics/login/verify', verifyAuthentication);     
 
-// 2. Módulo de Contratos y Auditoría
-// CORRECCIÓN: Removido validateSchema(contractSchema) para evitar crashes por campos faltantes en el Front
+// 3. Contratos y Auditoría
 app.post('/api/contracts', requireAuth, requireAdmin, createContract);
 app.get('/api/contracts', requireAuth, getContracts); 
 app.get('/api/audit', requireAuth, requireAdmin, getAuditLogs); 
 
-// 3. Módulo de Onboarding (Escáner OCR con IA via OpenRouter)
+// 4. Onboarding y Directorio General
 app.post('/api/ocr/process', requireAuth, upload.single('document'), processDocumentOCR);
-
-// 4. Módulo de Directorio General, Expedientes, Creación, Modificación y Remoción
 app.get('/api/employees', requireAuth, getAllEmployees);
 app.post('/api/employees', requireAuth, createEmployee); 
 app.get('/api/employees/:id', requireAuth, getEmployeeById);
@@ -97,5 +94,5 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(PORT as number, '0.0.0.0', () => {
-  console.log(`[The Fortress] Server running securely on port ${PORT} across network`);
+  console.log(`[The Fortress] Server running securely on port ${PORT}`);
 });

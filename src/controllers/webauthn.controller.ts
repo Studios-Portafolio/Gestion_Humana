@@ -16,16 +16,22 @@ const origin = process.env.FRONTEND_URL || `http://${rpID}:5173`;
 const JWT_SECRET = process.env.JWT_SECRET || 'fortress-super-secret-key';
 
 // ==========================================
-// 1. REGISTRO BIOMÉTRICO (GUARDAR HUELLA/FACEID)
+// 1. REGISTRO BIOMÉTRICO (HUELLA/FACEID)
 // ==========================================
 
 export const generateRegistration = async (req: Request, res: Response): Promise<void> => {
-  const { email } = req.body;
+  // ALINEACIÓN COMPLETA: Extraemos el email de req.body (POST) o de req.query (GET) para acoplarnos a Harvein
+  const email = req.body.email || req.query.email;
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
+    if (!email) {
+      res.status(400).json({ error: 'El correo electrónico es obligatorio para generar las opciones.' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: String(email) } });
     if (!user) {
-      res.status(404).json({ error: 'Usuario no encontrado' });
+      res.status(404).json({ error: 'Usuario no encontrado en los registros de seguridad.' });
       return;
     }
 
@@ -160,7 +166,6 @@ export const verifyAuthentication = async (req: Request, res: Response): Promise
       return;
     }
 
-    // CORRECCIÓN DE MEMORIA NODE 24: Envolvemos el Buffer en un Uint8Array puro para desarmar el error de tsc
     const verification = await verifyAuthenticationResponse({
       response: body,
       expectedChallenge: user.currentChallenge,
