@@ -6,7 +6,8 @@ export const generateLegalContract = async (
   country: string
 ): Promise<string | null> => {
   try {
-    console.log(`📄 Generando contrato inteligente real para ${employeeName} vía Gemini 2.5 Pro...`);
+    // CORRECCIÓN VITAL: Cambiado a Gemini 2.5 Flash para responder en 2 segundos y evitar el timeout de Render
+    console.log(`📄 Generando contrato inteligente real para ${employeeName} vía Gemini 2.5 Flash...`);
     
     const API_KEY = process.env.OPENROUTER_API_KEY || '';
     const url = "https://openrouter.ai/api/v1/chat/completions";
@@ -27,9 +28,9 @@ export const generateLegalContract = async (
     `;
 
     const payload = {
-      model: "google/gemini-2.5-pro", 
+      model: "google/gemini-2.5-flash", // Utiliza Flash para velocidad de respuesta relámpago
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 2000 
+      max_tokens: 1000 
     };
 
     const aiResponse = await fetch(url, {
@@ -47,12 +48,12 @@ export const generateLegalContract = async (
 
     if (!aiResponse.ok) {
       console.error("Fallo del Proxy OpenRouter en contrato:", JSON.stringify(data, null, 2));
-      throw new Error("Fallo en el puente de OpenRouter");
+      throw new Error(data.error?.message || "Fallo en el puente de OpenRouter");
     }
 
-    return data.choices[0].message.content.trim();
+    return data.choices[0]?.message?.content?.trim() || null;
   } catch (error) {
     console.error('Error generando contrato inteligente con Proxy:', error);
-    throw new Error('Fallo en la generación del contrato por Inteligencia Artificial');
+    throw error;
   }
 };

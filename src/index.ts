@@ -10,7 +10,7 @@ import { createContract, getContracts } from './controllers/contract.controller'
 import { getAuditLogs } from './controllers/audit.controller';
 import { login, refreshSession } from './controllers/auth.controller'; 
 import { processDocumentOCR } from './controllers/ocr.controller';
-import { generateRegistration, verifyRegistration, generateAuthentication, verifyAuthentication } from './controllers/webauthn.controller'; // UNIFICADO: Importamos los métodos de login biométrico
+import { generateRegistration, verifyRegistration, generateAuthentication, verifyAuthentication } from './controllers/webauthn.controller'; 
 import { getAllEmployees, getEmployeeById, createEmployee, updateEmployee, deleteEmployee } from './controllers/employee.controller'; 
 
 // Middlewares
@@ -19,7 +19,7 @@ import { upload } from './middlewares/upload.middleware';
 import { validateSchema } from './middlewares/validate.middleware'; 
 
 // Schemas de Zod
-import { loginSchema, contractSchema } from './schemas/main.schema'; 
+import { loginSchema } from './schemas/main.schema'; 
 
 dotenv.config();
 
@@ -68,14 +68,15 @@ app.use(limiter);
 app.post('/api/auth/login', validateSchema(loginSchema), login);
 app.post('/api/auth/refresh', refreshSession); 
 
-// UNIFICADO: Todo el set completo de WebAuthn v10 (Registro + Login)
+// Todo el set completo de WebAuthn v10 (Registro + Login)
 app.post('/api/auth/biometrics/generate', generateRegistration);
 app.post('/api/auth/biometrics/verify', verifyRegistration);
-app.post('/api/auth/biometrics/login/generate', generateAuthentication); // NUEVO: Generar desafío de login
-app.post('/api/auth/biometrics/login/verify', verifyAuthentication);     // NUEVO: Verificar firma de login
+app.post('/api/auth/biometrics/login/generate', generateAuthentication); 
+app.post('/api/auth/biometrics/login/verify', verifyAuthentication);     
 
 // 2. Módulo de Contratos y Auditoría
-app.post('/api/contracts', requireAuth, requireAdmin, validateSchema(contractSchema), createContract);
+// CORRECCIÓN: Removido validateSchema(contractSchema) para evitar crashes por campos faltantes en el Front
+app.post('/api/contracts', requireAuth, requireAdmin, createContract);
 app.get('/api/contracts', requireAuth, getContracts); 
 app.get('/api/audit', requireAuth, requireAdmin, getAuditLogs); 
 
