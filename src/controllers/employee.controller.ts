@@ -163,9 +163,7 @@ export const deleteEmployee = async (req: any, res: Response): Promise<void> => 
   }
 };
 
-// ==========================================
-// MONITOR DE DIVISAS INTACTO
-// ==========================================
+
 export const getBcvRate = async (req: Request, res: Response): Promise<void> => {
   try {
     let usdBcv = 515.18; 
