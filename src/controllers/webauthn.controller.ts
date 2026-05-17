@@ -160,7 +160,7 @@ export const verifyAuthentication = async (req: Request, res: Response): Promise
       return;
     }
 
-    // SOLUCIÓN DEFINITIVA V10: Agrupamos los datos en el objeto exacto 'credential' esperado
+    // CORRECCIÓN DE MEMORIA NODE 24: Envolvemos el Buffer en un Uint8Array puro para desarmar el error de tsc
     const verification = await verifyAuthenticationResponse({
       response: body,
       expectedChallenge: user.currentChallenge,
@@ -168,7 +168,7 @@ export const verifyAuthentication = async (req: Request, res: Response): Promise
       expectedRPID: rpID,
       credential: {
         id: dbAuthenticator.credentialID,
-        publicKey: dbAuthenticator.credentialPublicKey,
+        publicKey: new Uint8Array(dbAuthenticator.credentialPublicKey),
         counter: Number(dbAuthenticator.counter),
       },
     });
