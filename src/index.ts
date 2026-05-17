@@ -10,8 +10,8 @@ import { createContract, getContracts } from './controllers/contract.controller'
 import { getAuditLogs } from './controllers/audit.controller';
 import { login, refreshSession } from './controllers/auth.controller'; 
 import { processDocumentOCR } from './controllers/ocr.controller';
-import { generateRegistration, verifyRegistration, generateAuthentication, verifyAuthentication, getBcvRate } from './controllers/webauthn.controller'; 
-import { getAllEmployees, getEmployeeById, createEmployee, updateEmployee, deleteEmployee } from './controllers/employee.controller'; 
+import { generateRegistration, verifyRegistration, generateAuthentication, verifyAuthentication } from './controllers/webauthn.controller'; 
+import { getAllEmployees, getEmployeeById, createEmployee, updateEmployee, deleteEmployee, getBcvRate } from './controllers/employee.controller'; // CORRECCIÓN: getBcvRate ahora se importa desde aquí
 
 // Middlewares
 import { requireAuth, requireAdmin } from './middlewares/auth.middleware';
@@ -65,11 +65,11 @@ app.use(limiter);
 // 1. Autenticación, Sesiones y Utilidades
 app.post('/api/auth/login', validateSchema(loginSchema), login);
 app.post('/api/auth/refresh', refreshSession); 
-app.get('/api/utils/bcv', getBcvRate); // NUEVO: Endpoint para que la vista de nómina lea el dólar automático
+app.get('/api/utils/bcv', getBcvRate); // Mantiene su ruta intacta
 
 // 2. Suite Completa de Biometría WebAuthn v10 (Alineada con el Frontend de Harvein)
-app.get('/api/auth/biometrics/register-options', generateRegistration);  // ALINEADO: Soporta la consulta GET de Harvein
-app.post('/api/auth/biometrics/register-options', generateRegistration); // Soporta fallback POST
+app.get('/api/auth/biometrics/register-options', generateRegistration);  
+app.post('/api/auth/biometrics/register-options', generateRegistration); 
 app.post('/api/auth/biometrics/verify', verifyRegistration);
 app.post('/api/auth/biometrics/login/generate', generateAuthentication); 
 app.post('/api/auth/biometrics/login/verify', verifyAuthentication);     
