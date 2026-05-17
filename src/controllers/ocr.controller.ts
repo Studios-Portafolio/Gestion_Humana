@@ -18,17 +18,16 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
-    console.log(`📸 Analizando documento REAL para: ${email} usando Proxy OpenRouter -> Gemini...`);
+    console.log(`📸 Analizando documento REAL para: ${email} usando Proxy OpenRouter -> Gemini Pro Vision...`);
 
     const base64Image = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype;
     const API_KEY = process.env.OPENROUTER_API_KEY || '';
 
-    // TÁCTICA: Puente a través de OpenRouter para evitar bloqueos regionales
     const url = "https://openrouter.ai/api/v1/chat/completions";
     
     const payload = {
-      model: "google/gemini-1.5-flash", 
+      model: "google/gemini-pro-vision", // ID 100% estable en OpenRouter
       messages: [
         {
           role: "user",

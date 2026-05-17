@@ -27,7 +27,7 @@ export const generateLegalContract = async (
     `;
 
     const payload = {
-      model: "google/gemini-1.5-flash",
+      model: "google/gemini-pro", // ID 100% estable en OpenRouter para texto
       messages: [{ role: "user", content: prompt }]
     };
 
