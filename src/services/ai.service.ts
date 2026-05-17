@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Volvemos a leer la llave secreta desde el entorno de Render de forma segura
+// Leemos la llave secreta desde el entorno de Render de forma segura
 const API_KEY = process.env.GEMINI_API_KEY || '';
 const genAI = new GoogleGenerativeAI(API_KEY);
 
@@ -12,9 +12,10 @@ export const generateLegalContract = async (
   country: string
 ): Promise<string | null> => {
   try {
-    console.log(`📄 Generando contrato inteligente real para ${employeeName}...`);
+    console.log(`📄 Generando contrato inteligente real para ${employeeName} usando Gemini Pro...`);
     
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // Motor PRO definitivo
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
     const prompt = `
       Eres el departamento legal corporativo de alta seguridad de la empresa "THE FORTRESS".
@@ -34,7 +35,7 @@ export const generateLegalContract = async (
     const result = await model.generateContent(prompt);
     return result.response.text().trim();
   } catch (error) {
-    console.error('Error generando contrato inteligente con Gemini:', error);
+    console.error('Error generando contrato inteligente con Gemini Pro:', error);
     throw new Error('Fallo en la generación del contrato por Inteligencia Artificial');
   }
 };

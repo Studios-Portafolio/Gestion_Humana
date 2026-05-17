@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const prisma = new PrismaClient();
 
-// Volvemos a leer la llave secreta desde el entorno de Render de forma segura
+// Leemos la llave secreta desde el entorno de Render de forma segura
 const API_KEY = process.env.GEMINI_API_KEY || '';
 const genAI = new GoogleGenerativeAI(API_KEY);
 
@@ -23,12 +23,13 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
-    console.log(`📸 Analizando documento REAL para: ${email} usando Gemini 1.5 Flash...`);
+    console.log(`📸 Analizando documento REAL para: ${email} usando Gemini 1.5 Pro...`);
 
     const base64Image = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // Motor PRO definitivo
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
     const prompt = "Eres un sistema estricto de seguridad y OCR. Extrae el nombre completo y el número de identificación (cédula o DNI) de este documento de identidad. Devuelve ÚNICAMENTE un objeto JSON válido con las claves exactas 'fullName' y 'idNumber'. No agregues texto adicional, saludos ni etiquetas markdown.";
     
@@ -50,7 +51,7 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
       throw new Error("La IA no pudo estructurar los datos del documento correctamente.");
     }
 
-    console.log(`✅ Gemini Extrajo con éxito: ${extractedData.fullName} (${extractedData.idNumber})`);
+    console.log(`✅ Gemini Pro Extrajo con éxito: ${extractedData.fullName} (${extractedData.idNumber})`);
 
     const newUser = await prisma.user.upsert({
       where: { email: email },
@@ -87,7 +88,7 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
     });
 
   } catch (error: any) {
-    console.error('Error en Motor OCR (Gemini):', error.message || error);
+    console.error('Error en Motor OCR (Gemini Pro):', error.message || error);
     res.status(500).json({ error: 'Error interno de la IA al procesar el documento. Verifica la conexión o la llave.' });
   }
 };
