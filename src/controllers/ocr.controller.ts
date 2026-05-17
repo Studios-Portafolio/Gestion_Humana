@@ -26,7 +26,6 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
 
     const url = "https://openrouter.ai/api/v1/chat/completions";
     
-    // Configuración con el ID exacto verificado del catálogo de OpenRouter
     const payload = {
       model: "google/gemini-2.5-flash", 
       messages: [
@@ -43,7 +42,9 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
             }
           ]
         }
-      ]
+      ],
+      // SOLUCIÓN: Forzamos un límite bajo de tokens para cumplir con el plan gratuito de OpenRouter
+      max_tokens: 400 
     };
 
     const aiResponse = await fetch(url, {

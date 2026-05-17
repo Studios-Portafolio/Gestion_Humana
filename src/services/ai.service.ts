@@ -26,10 +26,11 @@ export const generateLegalContract = async (
       3. Devuelve únicamente el contrato en formato Markdown estructurado, listo para ser firmado electrónicamente.
     `;
 
-    // Sincronizado con la versión 2.5 Pro estable de tu catálogo
     const payload = {
       model: "google/gemini-2.5-pro", 
-      messages: [{ role: "user", content: prompt }]
+      messages: [{ role: "user", content: prompt }],
+      // SOLUCIÓN: Limitamos a un tamaño estándar para un contrato sin superar los 16k permitidos
+      max_tokens: 2000 
     };
 
     const aiResponse = await fetch(url, {
