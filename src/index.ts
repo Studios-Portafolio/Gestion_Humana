@@ -11,7 +11,7 @@ import { getAuditLogs } from './controllers/audit.controller';
 import { login, refreshSession } from './controllers/auth.controller'; 
 import { processDocumentOCR } from './controllers/ocr.controller';
 import { generateRegistration, verifyRegistration } from './controllers/webauthn.controller';
-import { getAllEmployees, getEmployeeById } from './controllers/employee.controller'; 
+import { getAllEmployees, getEmployeeById, deleteEmployee } from './controllers/employee.controller'; // UNIFICADO: Importamos deleteEmployee
 
 // Middlewares
 import { requireAuth, requireAdmin } from './middlewares/auth.middleware';
@@ -26,13 +26,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// VITAL PARA RENDER: Le dice a Express que confíe en el balanceador de carga de la nube
-// Esto evita que todos los usuarios compartan la misma IP corporativa ante el Rate Limiter
 app.set('trust proxy', 1);
-
 app.use(helmet()); 
 
-// Configuración CORS blindada (Soporta red local, localhost y entornos en la nube como Render/Vercel)
 app.use(cors({ 
   origin: function (origin, callback) {
     if (!origin || origin.includes('localhost') || origin.includes('192.168.') || origin.includes('10.') || origin.includes('172.') || origin.includes('onrender.com') || origin.includes('vercel.app')) {
@@ -57,10 +53,9 @@ app.use((req, res, next) => {
 });
 // ------------------------------------------------------
 
-// Configuración optimizada para Fase de Desarrollo/Testing masivo
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
-  max: 1000, // Incrementado a 1000 para evitar bloqueos por bucles de renderizado en el front
+  max: 1000, 
   message: 'Demasiadas peticiones desde esta IP, por favor intente de nuevo en 15 minutos.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -83,9 +78,10 @@ app.get('/api/audit', requireAuth, requireAdmin, getAuditLogs);
 // 3. Módulo de Onboarding (Escáner OCR con IA via OpenRouter)
 app.post('/api/ocr/process', requireAuth, upload.single('document'), processDocumentOCR);
 
-// 4. Módulo de Directorio General y Expedientes (Sincronizado con Harvein)
+// 4. Módulo de Directorio General, Expedientes y Remoción
 app.get('/api/employees', requireAuth, getAllEmployees);
 app.get('/api/employees/:id', requireAuth, getEmployeeById);
+app.delete('/api/employees/:id', requireAuth, deleteEmployee); // UNIFICADO: Cableamos la ruta DELETE requerida por Harvein
 
 // ---------------------------------------------
 
