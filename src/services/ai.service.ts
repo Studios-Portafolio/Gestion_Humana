@@ -11,10 +11,10 @@ export const generateLegalContract = async (
   country: string
 ): Promise<string | null> => {
   try {
-    console.log(`📄 Generando contrato inteligente real para ${employeeName} usando Gemini...`);
+    console.log(`📄 Generando contrato inteligente real para ${employeeName} usando Gemini Pro...`);
     
-    // Usamos el modelo exacto (latest)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    // Usamos el modelo PRO
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
     const prompt = `
       Eres el departamento legal corporativo de alta seguridad de la empresa "THE FORTRESS".
@@ -36,7 +36,7 @@ export const generateLegalContract = async (
 
     return contractText.trim();
   } catch (error) {
-    console.error('Error generando contrato inteligente con Gemini:', error);
+    console.error('Error generando contrato inteligente con Gemini Pro:', error);
     throw new Error('Fallo en la generación del contrato por Inteligencia Artificial');
   }
 };
