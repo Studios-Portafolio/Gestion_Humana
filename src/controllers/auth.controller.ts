@@ -48,8 +48,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       }
     });
 
-    // 3. Enviamos el Refresh Token en una Cookie HTTP-Only. 
-    // Esto significa que JavaScript en el frontend NO puede leerla, haciéndola inmune a ataques XSS.
+    // 3. Enviamos el Refresh Token en una Cookie HTTP-Only de forma segura
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production', // En producción exige HTTPS
@@ -57,14 +56,17 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 días
     });
 
+    // ALINEACIÓN CON EL FRONTEND: Mapeamos los datos para cumplir con la especificación de Harvein
     res.status(200).json({
       message: 'Autenticación exitosa',
-      accessToken,
+      accessToken, // Mantienes tu lógica avanzada por si la necesitas
+      token: accessToken, // El string exacto que el Axios de Harvein va a capturar
       user: {
         id: user.id,
-        fullName: user.fullName,
-        role: user.role,
-        email: user.email
+        name: user.fullName, // Harvein mapea 'name' en lugar de 'fullName'
+        fullName: user.fullName, // Mantenemos compatibilidad con tu esquema original
+        email: user.email,
+        role: user.role === 'ADMIN' ? 'Admin' : 'Employee' // El frontend espera 'Admin' capitalizado
       }
     });
   } catch (error) {
@@ -73,7 +75,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-// NUEVA FUNCIÓN: Renovar el Token de Acceso
+// NUEVA FUNCIÓN: Renovar el Token de Acceso usando la cookie blindada
 export const refreshSession = async (req: Request, res: Response): Promise<void> => {
   const { refreshToken } = req.cookies;
 
@@ -84,7 +86,7 @@ export const refreshSession = async (req: Request, res: Response): Promise<void>
 
   try {
     // Verificamos si el token de refresco es válido y no ha sido alterado
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET as string) as { id: string };
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET as string) as { id: any };
     
     const user = await prisma.user.findUnique({ where: { id: decoded.id } });
     
