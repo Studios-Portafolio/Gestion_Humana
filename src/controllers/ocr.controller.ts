@@ -18,51 +18,62 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
-    console.log(`📸 Analizando documento REAL para: ${email} por conexión directa a Gemini 1.5 Flash...`);
+    console.log(`📸 Analizando documento REAL para: ${email} usando Proxy OpenRouter -> Gemini...`);
 
     const base64Image = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype;
-    const API_KEY = process.env.GEMINI_API_KEY || '';
+    const API_KEY = process.env.OPENROUTER_API_KEY || '';
 
-    // TÁCTICA: Conexión REST directa saltándose el SDK de Google
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+    // TÁCTICA: Puente a través de OpenRouter para evitar bloqueos regionales
+    const url = "https://openrouter.ai/api/v1/chat/completions";
     
     const payload = {
-      contents: [{
-        parts: [
-          { text: "Eres un sistema estricto de seguridad y OCR. Extrae el nombre completo y el número de identificación (cédula o DNI) de este documento de identidad. Devuelve ÚNICAMENTE un objeto JSON válido con las claves exactas 'fullName' y 'idNumber'. No agregues texto adicional, saludos ni etiquetas markdown." },
-          { inlineData: { mimeType: mimeType, data: base64Image } }
-        ]
-      }],
-      generationConfig: {
-        responseMimeType: "application/json"
-      }
+      model: "google/gemini-1.5-flash", 
+      messages: [
+        {
+          role: "user",
+          content: [
+            { 
+              type: "text", 
+              text: "Eres un sistema estricto de seguridad y OCR. Extrae el nombre completo y el número de identificación (cédula o DNI) de este documento de identidad. Devuelve ÚNICAMENTE un objeto JSON válido con las claves exactas 'fullName' y 'idNumber'. No agregues texto adicional, saludos ni etiquetas markdown." 
+            },
+            { 
+              type: "image_url", 
+              image_url: { url: `data:${mimeType};base64,${base64Image}` } 
+            }
+          ]
+        }
+      ]
     };
 
     const aiResponse = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`,
+        'HTTP-Referer': 'https://the-fortress-backend.onrender.com',
+        'X-Title': 'The Fortress'
+      },
       body: JSON.stringify(payload)
     });
 
     const data = await aiResponse.json();
 
     if (!aiResponse.ok) {
-      console.error("Fallo directo de Google:", JSON.stringify(data, null, 2));
-      throw new Error(data.error?.message || "Error desconocido en API de Google");
+      console.error("Fallo del Proxy OpenRouter:", JSON.stringify(data, null, 2));
+      throw new Error("Error en el puente de Inteligencia Artificial");
     }
 
-    // Extraemos la respuesta cruda
-    let jsonString = data.candidates[0].content.parts[0].text; 
+    let jsonString = data.choices[0].message.content; 
     jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
 
     const extractedData = JSON.parse(jsonString);
 
     if (!extractedData.fullName || !extractedData.idNumber) {
-      throw new Error("La IA no pudo estructurar los datos del documento correctamente.");
+      throw new Error("La IA no pudo estructurar los datos correctamente.");
     }
 
-    console.log(`✅ Conexión Directa Extrajo con éxito: ${extractedData.fullName} (${extractedData.idNumber})`);
+    console.log(`✅ Proxy Extrajo con éxito: ${extractedData.fullName} (${extractedData.idNumber})`);
 
     const newUser = await prisma.user.upsert({
       where: { email: email },
@@ -88,7 +99,7 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
     });
 
     res.status(201).json({
-      message: 'Documento procesado con Inteligencia Artificial',
+      message: 'Documento procesado con Inteligencia Artificial vía Proxy',
       employee: {
         id: newUser.id,
         name: newUser.fullName,
@@ -99,7 +110,7 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
     });
 
   } catch (error: any) {
-    console.error('Error en Motor OCR Directo:', error.message || error);
-    res.status(500).json({ error: 'Error interno de la IA al procesar el documento. Revisa los logs de Render para detalles exactos.' });
+    console.error('Error en Motor OCR (Proxy OpenRouter):', error.message || error);
+    res.status(500).json({ error: 'Error interno de la IA al procesar el documento. Verifica la conexión o la calidad de la imagen.' });
   }
 };

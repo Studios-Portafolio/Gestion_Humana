@@ -6,10 +6,10 @@ export const generateLegalContract = async (
   country: string
 ): Promise<string | null> => {
   try {
-    console.log(`📄 Generando contrato inteligente real para ${employeeName} vía conexión directa...`);
+    console.log(`📄 Generando contrato inteligente real para ${employeeName} vía Proxy OpenRouter...`);
     
-    const API_KEY = process.env.GEMINI_API_KEY || '';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+    const API_KEY = process.env.OPENROUTER_API_KEY || '';
+    const url = "https://openrouter.ai/api/v1/chat/completions";
 
     const prompt = `
       Eres el departamento legal corporativo de alta seguridad de la empresa "THE FORTRESS".
@@ -27,26 +27,31 @@ export const generateLegalContract = async (
     `;
 
     const payload = {
-      contents: [{
-        parts: [{ text: prompt }]
-      }]
+      model: "google/gemini-1.5-flash",
+      messages: [{ role: "user", content: prompt }]
     };
 
     const aiResponse = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`,
+        'HTTP-Referer': 'https://the-fortress-backend.onrender.com',
+        'X-Title': 'The Fortress'
+      },
       body: JSON.stringify(payload)
     });
 
     const data = await aiResponse.json();
 
     if (!aiResponse.ok) {
-      throw new Error(data.error?.message || "Fallo en la API cruda de Google");
+      console.error("Fallo del Proxy OpenRouter en contrato:", JSON.stringify(data, null, 2));
+      throw new Error("Fallo en el puente de OpenRouter");
     }
 
-    return data.candidates[0].content.parts[0].text.trim();
+    return data.choices[0].message.content.trim();
   } catch (error) {
-    console.error('Error generando contrato inteligente directo:', error);
+    console.error('Error generando contrato inteligente con Proxy:', error);
     throw new Error('Fallo en la generación del contrato por Inteligencia Artificial');
   }
 };
