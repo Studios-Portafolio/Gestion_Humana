@@ -7,30 +7,46 @@ import crypto from 'crypto';
 const prisma = new PrismaClient();
 
 export const createContract = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const { employeeId, role, salary, currency, country } = req.body;
+  // Soportamos tanto 'employeeId' como 'userId' por si Harvein lo envía con cualquier nombre en el cuerpo
+  const { employeeId, userId, role, salary, currency, country } = req.body;
+  const targetId = employeeId || userId;
 
   try {
-    const employee = await prisma.user.findUnique({ where: { id: employeeId } });
-    if (!employee) {
-      res.status(404).json({ error: 'Empleado no encontrado en la base de datos central.' });
+    if (!targetId) {
+      res.status(400).json({ error: 'ID del colaborador requerido (employeeId o userId).' });
       return;
     }
 
-    // Invocamos el puente OpenRouter con los datos reales del colaborador
+    // Buscamos el expediente real en tu Neon DB
+    const employee = await prisma.user.findUnique({ where: { id: targetId } });
+    if (!employee) {
+      res.status(404).json({ error: 'El colaborador seleccionado no existe en el búnker.' });
+      return;
+    }
+
+    // INTELIGENCIA ADAPTATIVA: Si el formulario de Harvein no incluye el cargo o el país,
+    // los extraemos de su registro en la DB o asignamos valores por defecto para no romper el flujo.
+    const finalRole = role || employee.role || 'EMPLOYEE';
+    const finalCountry = country || 'Venezuela';
+    const finalSalary = salary ? Number(salary) : 100;
+    const finalCurrency = currency || 'USD';
+
+    console.log(`📄 Generando contrato real para ${employee.fullName} Vía Gemini 2.5 Pro...`);
+
     const contractContent = await generateLegalContract(
       employee.fullName,
-      role,
-      Number(salary),
-      currency,
-      country
+      finalRole,
+      finalSalary,
+      finalCurrency,
+      finalCountry
     );
 
     if (!contractContent) {
-      res.status(500).json({ error: 'La IA no devolvió contenido legal válido.' });
+      res.status(500).json({ error: 'El motor de Inteligencia Artificial no devolvió contenido legal válido.' });
       return;
     }
 
-    // Generamos el Hash criptográfico SHA-256 único del documento para la auditoría Zero Trust
+    // Generamos el Hash criptográfico real SHA-256 para la Bóveda Criptográfica del Front
     const documentHash = crypto.createHash('sha256').update(contractContent).digest('hex');
 
     const newContract = await prisma.contract.create({
@@ -51,16 +67,25 @@ export const createContract = async (req: AuthenticatedRequest, res: Response): 
       }
     });
 
-    res.status(201).json({ message: 'Contrato generado exitosamente', contract: newContract });
-  } catch (error) {
-    console.error('Error al generar contrato con IA:', error);
-    res.status(500).json({ error: 'Error interno del servidor al procesar el contrato' });
+    // ALINEACIÓN TOTAL CON EL FRONTEND: Enviamos una respuesta plana con múltiples alias de llaves
+    // para que se acople perfectamente con la destructuración que haya hecho Harvein en su React
+    res.status(201).json({
+      message: 'Contrato generado exitosamente',
+      content: contractContent,
+      contractContent: contractContent,
+      documentHash: documentHash,
+      hash: documentHash, // Mapea directo al recuadro de "HASH:" de la pantalla
+      contract: newContract
+    });
+
+  } catch (error: any) {
+    console.error('Error crítico al crear contrato inteligente:', error);
+    res.status(500).json({ error: 'Error interno del servidor al procesar el contrato', detalles: error.message });
   }
 };
 
 export const getContracts = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    // Sincronizamos la visibilidad estricta basándonos en tu enum Role de Prisma
     const isAdmin = req.user?.role === 'ADMIN' || req.user?.role === 'HR_MANAGER';
     
     const contracts = await prisma.contract.findMany({
@@ -75,7 +100,7 @@ export const getContracts = async (req: AuthenticatedRequest, res: Response): Pr
 
     res.status(200).json({ contracts });
   } catch (error) {
-    console.error('Error al obtener contratos del búnker:', error);
+    console.error('Error al obtener contratos del repositorio:', error);
     res.status(500).json({ error: 'Error al obtener los contratos' });
   }
 };
