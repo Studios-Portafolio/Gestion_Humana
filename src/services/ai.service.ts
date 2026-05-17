@@ -1,9 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Leemos la llave secreta desde el entorno de Render
-const API_KEY = process.env.GEMINI_API_KEY || '';
-const genAI = new GoogleGenerativeAI(API_KEY);
-
 export const generateLegalContract = async (
   employeeName: string,
   role: string,
@@ -12,10 +6,10 @@ export const generateLegalContract = async (
   country: string
 ): Promise<string | null> => {
   try {
-    console.log(`📄 Generando contrato inteligente real para ${employeeName} usando Gemini Pro (1.0)...`);
+    console.log(`📄 Generando contrato inteligente real para ${employeeName} vía conexión directa...`);
     
-    // Motor 1.0 Global para generación de texto
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const API_KEY = process.env.GEMINI_API_KEY || '';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
     const prompt = `
       Eres el departamento legal corporativo de alta seguridad de la empresa "THE FORTRESS".
@@ -32,10 +26,27 @@ export const generateLegalContract = async (
       3. Devuelve únicamente el contrato en formato Markdown estructurado, listo para ser firmado electrónicamente.
     `;
 
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim();
+    const payload = {
+      contents: [{
+        parts: [{ text: prompt }]
+      }]
+    };
+
+    const aiResponse = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await aiResponse.json();
+
+    if (!aiResponse.ok) {
+      throw new Error(data.error?.message || "Fallo en la API cruda de Google");
+    }
+
+    return data.candidates[0].content.parts[0].text.trim();
   } catch (error) {
-    console.error('Error generando contrato inteligente con Gemini Pro:', error);
+    console.error('Error generando contrato inteligente directo:', error);
     throw new Error('Fallo en la generación del contrato por Inteligencia Artificial');
   }
 };

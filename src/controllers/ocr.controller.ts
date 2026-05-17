@@ -1,13 +1,8 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { PrismaClient } from '@prisma/client';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const prisma = new PrismaClient();
-
-// Leemos la llave secreta desde el entorno de Render
-const API_KEY = process.env.GEMINI_API_KEY || '';
-const genAI = new GoogleGenerativeAI(API_KEY);
 
 export const processDocumentOCR = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -23,26 +18,42 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
-    console.log(`📸 Analizando documento REAL para: ${email} usando Gemini Pro Vision (1.0)...`);
+    console.log(`📸 Analizando documento REAL para: ${email} por conexión directa a Gemini 1.5 Flash...`);
 
     const base64Image = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype;
+    const API_KEY = process.env.GEMINI_API_KEY || '';
 
-    // Motor 1.0 Global e Infalible para imágenes
-    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
-
-    const prompt = "Eres un sistema estricto de seguridad y OCR. Extrae el nombre completo y el número de identificación (cédula o DNI) de este documento de identidad. Devuelve ÚNICAMENTE un objeto JSON válido con las claves exactas 'fullName' y 'idNumber'. No agregues texto adicional, saludos ni etiquetas markdown.";
+    // TÁCTICA: Conexión REST directa saltándose el SDK de Google
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
     
-    const imagePart = {
-      inlineData: {
-        data: base64Image,
-        mimeType: mimeType
+    const payload = {
+      contents: [{
+        parts: [
+          { text: "Eres un sistema estricto de seguridad y OCR. Extrae el nombre completo y el número de identificación (cédula o DNI) de este documento de identidad. Devuelve ÚNICAMENTE un objeto JSON válido con las claves exactas 'fullName' y 'idNumber'. No agregues texto adicional, saludos ni etiquetas markdown." },
+          { inlineData: { mimeType: mimeType, data: base64Image } }
+        ]
+      }],
+      generationConfig: {
+        responseMimeType: "application/json"
       }
     };
 
-    const aiResponse = await model.generateContent([prompt, imagePart]);
-    
-    let jsonString = aiResponse.response.text(); 
+    const aiResponse = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await aiResponse.json();
+
+    if (!aiResponse.ok) {
+      console.error("Fallo directo de Google:", JSON.stringify(data, null, 2));
+      throw new Error(data.error?.message || "Error desconocido en API de Google");
+    }
+
+    // Extraemos la respuesta cruda
+    let jsonString = data.candidates[0].content.parts[0].text; 
     jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
 
     const extractedData = JSON.parse(jsonString);
@@ -51,7 +62,7 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
       throw new Error("La IA no pudo estructurar los datos del documento correctamente.");
     }
 
-    console.log(`✅ Gemini Vision Extrajo con éxito: ${extractedData.fullName} (${extractedData.idNumber})`);
+    console.log(`✅ Conexión Directa Extrajo con éxito: ${extractedData.fullName} (${extractedData.idNumber})`);
 
     const newUser = await prisma.user.upsert({
       where: { email: email },
@@ -88,7 +99,7 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
     });
 
   } catch (error: any) {
-    console.error('Error en Motor OCR (Gemini Vision):', error.message || error);
-    res.status(500).json({ error: 'Error interno de la IA al procesar el documento. Verifica la conexión o la calidad de la imagen.' });
+    console.error('Error en Motor OCR Directo:', error.message || error);
+    res.status(500).json({ error: 'Error interno de la IA al procesar el documento. Revisa los logs de Render para detalles exactos.' });
   }
 };
