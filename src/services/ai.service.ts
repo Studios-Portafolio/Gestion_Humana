@@ -29,7 +29,6 @@ export const generateLegalContract = async (
     const payload = {
       model: "google/gemini-2.5-pro", 
       messages: [{ role: "user", content: prompt }],
-      // SOLUCIÓN: Limitamos a un tamaño estándar para un contrato sin superar los 16k permitidos
       max_tokens: 2000 
     };
 

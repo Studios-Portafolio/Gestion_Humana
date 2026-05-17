@@ -34,7 +34,8 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
           content: [
             { 
               type: "text", 
-              text: "Eres un sistema estricto de seguridad y OCR. Extrae el nombre completo y el número de identificación (cédula o DNI) de este documento de identidad. Devuelve ÚNICAMENTE un objeto JSON válido con las claves exactas 'fullName' y 'idNumber'. No agregues texto adicional, saludos ni etiquetas markdown." 
+              // Actualizamos el prompt para extraer la fecha de nacimiento que Harvein necesita
+              text: "Eres un sistema estricto de seguridad y OCR. Extrae el nombre completo, el número de identificación (cédula o DNI) y la fecha de nacimiento de este documento de identidad. Devuelve ÚNICAMENTE un objeto JSON válido con las claves exactas 'fullName', 'idNumber' y 'birthDate'. No agregues texto adicional, saludos ni etiquetas markdown." 
             },
             { 
               type: "image_url", 
@@ -43,8 +44,7 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
           ]
         }
       ],
-      // SOLUCIÓN: Forzamos un límite bajo de tokens para cumplir con el plan gratuito de OpenRouter
-      max_tokens: 400 
+      max_tokens: 500 
     };
 
     const aiResponse = await fetch(url, {
@@ -76,6 +76,7 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
 
     console.log(`✅ Proxy Extrajo con éxito: ${extractedData.fullName} (${extractedData.idNumber})`);
 
+    // Sincronizamos con tu base de datos Neon DB
     const newUser = await prisma.user.upsert({
       where: { email: email },
       update: {
@@ -99,19 +100,16 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
       }
     });
 
-    res.status(201).json({
-      message: 'Documento procesado con Inteligencia Artificial vía Proxy',
-      employee: {
-        id: newUser.id,
-        name: newUser.fullName,
-        email: newUser.email,
-        status: 'ACTIVE'
-      },
-      confidence: 0.99 
+    // CORRECCIÓN VITAL: Respondemos exactamente con la estructura que el Frontend de Harvein mapea
+    res.status(200).json({
+      nombre: newUser.fullName,
+      cedula: extractedData.idNumber,
+      fechaNacimiento: extractedData.birthDate || "No detectada",
+      email: newUser.email
     });
 
   } catch (error: any) {
     console.error('Error en Motor OCR (Proxy OpenRouter):', error.message || error);
-    res.status(500).json({ error: 'Error interno de la IA al procesar el documento. Verifica la conexión o la calidad de la imagen.' });
+    res.status(500).json({ error: 'Error interno de la IA al procesar el documento.' });
   }
 };
