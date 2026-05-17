@@ -18,7 +18,7 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
-    console.log(`📸 Analizando documento REAL para: ${email} usando Proxy OpenRouter -> Gemini Pro Vision...`);
+    console.log(`📸 Analizando documento REAL para: ${email} usando Proxy OpenRouter -> Gemini Flash Latest...`);
 
     const base64Image = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype;
@@ -26,15 +26,16 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
 
     const url = "https://openrouter.ai/api/v1/chat/completions";
     
+    // Usamos el ID exacto y actualizado del catálogo de OpenRouter
     const payload = {
-      model: "google/gemini-pro-vision", // ID 100% estable en OpenRouter
+      model: "google/gemini-flash-latest", 
       messages: [
         {
           role: "user",
           content: [
             { 
               type: "text", 
-              text: "Eres un sistema estricto de seguridad y OCR. Extrae el nombre completo y el número de identificación (cédula o DNI) de este documento de identidad. Devuelve ÚNICAMENTE un objeto JSON válido con las claves exactas 'fullName' y 'idNumber'. No agregues texto adicional, saludos ni etiquetas markdown." 
+              text: "Eres un sistema estricto de seguridad y OCR. Extrae el nombre completo y el número de identificación (cédula o DNI) de este documento de identidad. Devuelve ÚNICAMENTE un objeto JSON válido con las claves exactas 'fullName' and 'idNumber'. No agregues texto adicional, saludos ni etiquetas markdown." 
             },
             { 
               type: "image_url", 
