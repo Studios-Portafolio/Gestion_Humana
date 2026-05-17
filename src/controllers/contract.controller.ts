@@ -12,23 +12,25 @@ export const createContract = async (req: AuthenticatedRequest, res: Response): 
   try {
     const employee = await prisma.user.findUnique({ where: { id: employeeId } });
     if (!employee) {
-      res.status(404).json({ error: 'Empleado no encontrado' });
+      res.status(404).json({ error: 'Empleado no encontrado en la base de datos central.' });
       return;
     }
 
+    // Invocamos el puente OpenRouter con los datos reales del colaborador
     const contractContent = await generateLegalContract(
       employee.fullName,
       role,
-      salary,
+      Number(salary),
       currency,
       country
     );
 
     if (!contractContent) {
-      res.status(500).json({ error: 'La IA no devolvió contenido válido' });
+      res.status(500).json({ error: 'La IA no devolvió contenido legal válido.' });
       return;
     }
 
+    // Generamos el Hash criptográfico SHA-256 único del documento para la auditoría Zero Trust
     const documentHash = crypto.createHash('sha256').update(contractContent).digest('hex');
 
     const newContract = await prisma.contract.create({
@@ -51,22 +53,21 @@ export const createContract = async (req: AuthenticatedRequest, res: Response): 
 
     res.status(201).json({ message: 'Contrato generado exitosamente', contract: newContract });
   } catch (error) {
-    console.error(error);
+    console.error('Error al generar contrato con IA:', error);
     res.status(500).json({ error: 'Error interno del servidor al procesar el contrato' });
   }
 };
 
-// NUEVA FUNCIÓN: Obtener la lista de contratos para el Dashboard
 export const getContracts = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    // Si es ADMIN o HR_MANAGER, ve todos los contratos. Si es EMPLOYEE, solo ve los suyos.
+    // Sincronizamos la visibilidad estricta basándonos en tu enum Role de Prisma
     const isAdmin = req.user?.role === 'ADMIN' || req.user?.role === 'HR_MANAGER';
     
     const contracts = await prisma.contract.findMany({
       where: isAdmin ? {} : { userId: req.user?.id },
       include: {
         user: {
-          select: { fullName: true, email: true } // Traemos los datos del empleado asociado
+          select: { fullName: true, email: true, idNumber: true }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -74,7 +75,7 @@ export const getContracts = async (req: AuthenticatedRequest, res: Response): Pr
 
     res.status(200).json({ contracts });
   } catch (error) {
-    console.error(error);
+    console.error('Error al obtener contratos del búnker:', error);
     res.status(500).json({ error: 'Error al obtener los contratos' });
   }
 };

@@ -43,7 +43,6 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
           ]
         }
       ],
-      // Forzamos a la API a responder estrictamente en formato estructurado JSON
       response_format: { type: "json_object" },
       max_tokens: 400 
     };
@@ -61,16 +60,12 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
 
     const data = await aiResponse.json();
 
-    // DIAGNÓSTICO: Si OpenRouter responde mal, capturamos su mensaje exacto y lo lanzamos al catch
     if (!aiResponse.ok) {
       const openRouterErrorMessage = data.error?.message || 'Error desconocido en el proveedor de IA';
-      console.error("Fallo detallado del Proxy OpenRouter:", JSON.stringify(data, null, 2));
       throw new Error(`OpenRouter rechazó la petición: ${openRouterErrorMessage}`);
     }
 
     let jsonString = data.choices[0]?.message?.content || ''; 
-    
-    // BLINDAJE EXTRA: Aislamos el objeto JSON usando expresiones regulares para evitar fallos de parseo
     const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       jsonString = jsonMatch[0];
@@ -79,20 +74,25 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
     const extractedData = JSON.parse(jsonString);
 
     if (!extractedData.fullName || !extractedData.idNumber) {
-      throw new Error("La IA completó la tarea pero no estructuró las llaves 'fullName' o 'idNumber' correctamente.");
+      throw new Error("La IA completó la tarea pero no estructuró las llaves correctamente.");
     }
 
     console.log(`✅ Proxy Extrajo con éxito: ${extractedData.fullName} (${extractedData.idNumber})`);
 
+    // PERSISTENCIA REAL: Guardamos los datos del OCR directamente en las nuevas columnas de Neon DB
     const newUser = await prisma.user.upsert({
       where: { email: email },
       update: {
         fullName: extractedData.fullName,
+        idNumber: extractedData.idNumber,
+        birthDate: extractedData.birthDate,
         isActive: true
       },
       create: {
         email: email,
         fullName: extractedData.fullName,
+        idNumber: extractedData.idNumber,
+        birthDate: extractedData.birthDate,
         role: 'EMPLOYEE',
         isActive: true
       }
@@ -111,18 +111,16 @@ export const processDocumentOCR = async (req: AuthenticatedRequest, res: Respons
 
     res.status(200).json({
       nombre: newUser.fullName,
-      cedula: extractedData.idNumber,
-      fechaNacimiento: extractedData.birthDate || "No detectada",
+      cedula: newUser.idNumber,
+      fechaNacimiento: newUser.birthDate || "No detectada",
       email: newUser.email
     });
 
   } catch (error: any) {
     console.error('Error crítico en Motor OCR:', error.message || error);
-    
-    // Revelamos la causa real del fallo al frontend para solucionar el problema de inmediato
     res.status(500).json({ 
       error: 'Error interno en el motor de IA.',
-      detalles: error.message || 'Error de parseo o conectividad inesperado.'
+      detalles: error.message || 'Error de parseo inesperado.'
     });
   }
 };

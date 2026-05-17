@@ -25,10 +25,9 @@ export const getAllEmployees = async (req: Request, res: Response): Promise<void
 export const getEmployeeById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const parsedId = isNaN(Number(id)) ? id : Number(id) as any;
 
-    const user = await prisma.user.findUnique({
-      where: { id: isNaN(Number(id)) ? id : Number(id) as any }
-    });
+    const user = await prisma.user.findUnique({ where: { id: parsedId } });
 
     if (!user) {
       res.status(404).json({ error: 'Expediente no encontrado en el sistema.' });
@@ -39,7 +38,7 @@ export const getEmployeeById = async (req: Request, res: Response): Promise<void
       ? user.fullName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
       : 'EM';
 
-    // CORRECCIÓN VITAL: Agregamos la clave 'email' para que Harvein deje de ver "no asignado"
+    // ELIMINACIÓN DE MARCADORES: Retornamos las columnas reales de tu base de datos Neon
     res.status(200).json({
       uuid: user.id.toString(),
       name: user.fullName,
@@ -48,11 +47,11 @@ export const getEmployeeById = async (req: Request, res: Response): Promise<void
       dept: user.role === 'ADMIN' ? 'Infraestructura' : 'Desarrollo',
       status: user.isActive ? 'Activo' : 'Inactivo',
       initial: initials,
-      cedula: "V-20.123.456", 
-      cumple: "15 de Mayo, 1992",
-      ingreso: "01 de Enero, 2024",
-      dispositivo: "Vinculado con WebAuthn",
-      devId: `SEC-${user.id}`
+      cedula: user.idNumber || "No registrada", 
+      cumple: user.birthDate || "No registrada",
+      ingreso: user.hireDate ? new Date(user.hireDate).toLocaleDateString('es-ES') : "No registrada",
+      dispositivo: user.deviceType || "Vinculado con WebAuthn",
+      devId: user.devId || `SEC-${user.id}`
     });
 
   } catch (error) {
@@ -72,21 +71,17 @@ export const deleteEmployee = async (req: any, res: Response): Promise<void> => 
       return;
     }
 
-    // BLINDAJE EN CASCADA: Borramos de forma segura cualquier registro hijo para evitar el choque de claves foráneas (Error 500)
     if ('contract' in prisma) {
       await (prisma as any).contract.deleteMany({ where: { userId: parsedId } }).catch(() => {});
     }
-    
     if ('auditLog' in prisma) {
       await (prisma as any).auditLog.deleteMany({ where: { userId: parsedId } }).catch(() => {});
     }
 
-    // Ahora que las tablas dependientes están limpias, ejecutamos la remoción física del usuario
     await prisma.user.delete({ where: { id: parsedId } });
-
     res.status(200).json({ message: 'Expediente eliminado exitosamente de los servidores centrales.' });
   } catch (error: any) {
     console.error('Error crítico al eliminar empleado:', error.message || error);
-    res.status(500).json({ error: 'Error interno del búnker al intentar remover el expediente.', detalles: error.message });
+    res.status(500).json({ error: 'Error interno del búnker al intentar remover el expediente.' });
   }
 };
