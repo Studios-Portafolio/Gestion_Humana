@@ -6,7 +6,7 @@ export const generateLegalContract = async (
   country: string
 ): Promise<string | null> => {
   try {
-    console.log(`📄 Generando contrato inteligente real para ${employeeName} vía Gemini Pro Latest...`);
+    console.log(`📄 Generando contrato inteligente real para ${employeeName} vía Gemini 2.5 Pro...`);
     
     const API_KEY = process.env.OPENROUTER_API_KEY || '';
     const url = "https://openrouter.ai/api/v1/chat/completions";
@@ -26,9 +26,9 @@ export const generateLegalContract = async (
       3. Devuelve únicamente el contrato en formato Markdown estructurado, listo para ser firmado electrónicamente.
     `;
 
-    // Usamos el ID exacto y actualizado del catálogo para texto
+    // Sincronizado con la versión 2.5 Pro estable de tu catálogo
     const payload = {
-      model: "google/gemini-pro-latest", 
+      model: "google/gemini-2.5-pro", 
       messages: [{ role: "user", content: prompt }]
     };
 
