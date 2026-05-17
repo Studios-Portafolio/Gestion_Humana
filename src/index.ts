@@ -10,8 +10,8 @@ import { createContract, getContracts } from './controllers/contract.controller'
 import { getAuditLogs } from './controllers/audit.controller';
 import { login, refreshSession } from './controllers/auth.controller'; 
 import { processDocumentOCR } from './controllers/ocr.controller';
-import { generateRegistration, verifyRegistration } from './controllers/webauthn.controller';
-import { getAllEmployees, getEmployeeById, createEmployee, updateEmployee, deleteEmployee } from './controllers/employee.controller'; // UNIFICADO: Importamos createEmployee
+import { generateRegistration, verifyRegistration, generateAuthentication, verifyAuthentication } from './controllers/webauthn.controller'; // UNIFICADO: Importamos los métodos de login biométrico
+import { getAllEmployees, getEmployeeById, createEmployee, updateEmployee, deleteEmployee } from './controllers/employee.controller'; 
 
 // Middlewares
 import { requireAuth, requireAdmin } from './middlewares/auth.middleware';
@@ -64,11 +64,15 @@ app.use(limiter);
 
 // --- 🛠️ ENRUTADOR MAESTRO DE THE FORTRESS ---
 
-// 1. Módulo de Autenticación y Sesiones
+// 1. Módulo de Autenticación y Sesiones Tradicionales / Biométricas
 app.post('/api/auth/login', validateSchema(loginSchema), login);
 app.post('/api/auth/refresh', refreshSession); 
+
+// UNIFICADO: Todo el set completo de WebAuthn v10 (Registro + Login)
 app.post('/api/auth/biometrics/generate', generateRegistration);
 app.post('/api/auth/biometrics/verify', verifyRegistration);
+app.post('/api/auth/biometrics/login/generate', generateAuthentication); // NUEVO: Generar desafío de login
+app.post('/api/auth/biometrics/login/verify', verifyAuthentication);     // NUEVO: Verificar firma de login
 
 // 2. Módulo de Contratos y Auditoría
 app.post('/api/contracts', requireAuth, requireAdmin, validateSchema(contractSchema), createContract);
@@ -80,7 +84,7 @@ app.post('/api/ocr/process', requireAuth, upload.single('document'), processDocu
 
 // 4. Módulo de Directorio General, Expedientes, Creación, Modificación y Remoción
 app.get('/api/employees', requireAuth, getAllEmployees);
-app.post('/api/employees', requireAuth, createEmployee); // CABLEADO: Endpoint POST activo para el guardado final de Harvein
+app.post('/api/employees', requireAuth, createEmployee); 
 app.get('/api/employees/:id', requireAuth, getEmployeeById);
 app.put('/api/employees/:id', requireAuth, updateEmployee); 
 app.delete('/api/employees/:id', requireAuth, deleteEmployee); 
