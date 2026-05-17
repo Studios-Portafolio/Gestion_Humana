@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { encryptData, decryptData } from '../utils/crypto.util';
 
 const prisma = new PrismaClient();
 
@@ -15,11 +16,12 @@ export const getAllEmployees = async (req: Request, res: Response): Promise<void
       role: user.role === 'ADMIN' ? 'Administrador SIACC & IT' : user.role === 'HR_MANAGER' ? 'HR Manager' : 'Tech Lead & Backend',
       dept: user.dept,
       status: user.status.charAt(0) + user.status.slice(1).toLowerCase(),
-      cedula: user.idNumber || "V-00000000", 
-      idNumber: user.idNumber || "V-00000000",
+      // DESCIFRADO EN TIEMPO REAL: Convertimos el hash de DB a texto plano para el frontend
+      cedula: decryptData(user.idNumber) || "V-00000000", 
+      idNumber: decryptData(user.idNumber) || "V-00000000",
       email: user.email,
       correo: user.email,
-      cumple: user.birthDate || "No registrada"
+      cumple: decryptData(user.birthDate) || "No registrada"
     }));
 
     res.status(200).json(formattedEmployees);
@@ -51,8 +53,9 @@ export const getEmployeeById = async (req: Request, res: Response): Promise<void
       dept: user.dept,
       status: user.status.charAt(0) + user.status.slice(1).toLowerCase(),
       initial: initials,
-      cedula: user.idNumber || "V-00000000", 
-      cumple: user.birthDate || "No registrada",
+      // DESCIFRADO EN TIEMPO REAL
+      cedula: decryptData(user.idNumber) || "V-00000000", 
+      cumple: decryptData(user.birthDate) || "No registrada",
       ingreso: user.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : "No registrada",
       dispositivo: "Vinculado con WebAuthn",
       devId: `SEC-${user.id}`
@@ -79,12 +82,16 @@ export const createEmployee = async (req: any, res: Response): Promise<void> => 
       else if (role.toUpperCase().includes('HR') || role.toUpperCase().includes('MANAGER')) finalRole = 'HR_MANAGER';
     }
 
+    // CIFRADO DE DATOS SENSIBLES antes de tocar la base de datos
+    const encryptedCedula = cedula ? encryptData(String(cedula)) : null;
+    const encryptedCumple = cumple ? encryptData(String(cumple)) : null;
+
     const newEmployee = await prisma.user.upsert({
       where: { email: email },
       update: {
         fullName: name,
-        idNumber: cedula,
-        birthDate: cumple,
+        idNumber: encryptedCedula,
+        birthDate: encryptedCumple,
         status: status ? status.toUpperCase() : 'ACTIVO',
         role: finalRole as any,
         dept: dept || 'General',
@@ -93,8 +100,8 @@ export const createEmployee = async (req: any, res: Response): Promise<void> => 
       create: {
         email: email,
         fullName: name,
-        idNumber: cedula,
-        birthDate: cumple,
+        idNumber: encryptedCedula,
+        birthDate: encryptedCumple,
         status: status ? status.toUpperCase() : 'ACTIVO',
         role: finalRole as any,
         dept: dept || 'General',
@@ -103,7 +110,7 @@ export const createEmployee = async (req: any, res: Response): Promise<void> => 
     });
 
     res.status(201).json({
-      message: 'Expediente creado y guardado exitosamente en Postgres.',
+      message: 'Expediente encriptado y guardado exitosamente en Postgres.',
       employee: newEmployee
     });
   } catch (error: any) {
@@ -157,16 +164,14 @@ export const deleteEmployee = async (req: any, res: Response): Promise<void> => 
 };
 
 // ==========================================
-// 3. MONITOR CON SENSOR ANTI-CACHÉ Y TASAS REALES (2026)
+// MONITOR DE DIVISAS INTACTO
 // ==========================================
 export const getBcvRate = async (req: Request, res: Response): Promise<void> => {
   try {
-    // TASAS REALES DE PIZARRA PARA MAYO 2026
     let usdBcv = 515.18; 
     let eurBcv = 601.45; 
     let usdParalelo = 520.33;
 
-    // Consultamos la API externa
     const response = await fetch('https://ve.dolarapi.com/v1/dolares').catch(() => null);
     
     if (response && response.ok) {
@@ -174,7 +179,6 @@ export const getBcvRate = async (req: Request, res: Response): Promise<void> => 
       if (Array.isArray(data)) {
         const oficial = data.find((d: any) => d.moneda === 'USD' && d.nombre === 'Oficial');
         const paralelo = data.find((d: any) => d.moneda === 'USD' && d.nombre === 'Paralelo');
-        
         if (oficial?.promedio) usdBcv = parseFloat(oficial.promedio);
         if (paralelo?.promedio) usdParalelo = parseFloat(paralelo.promedio);
       }
@@ -186,18 +190,14 @@ export const getBcvRate = async (req: Request, res: Response): Promise<void> => 
       if (eurData?.promedio) eurBcv = parseFloat(eurData.promedio);
     }
 
-    // EL FILTRO DEFINITIVO: Si la API devuelve un dólar menor a 500 Bs,
-    // significa que está atrapada en el caché viejo de 2024. Forzamos las tasas de hoy.
     if (usdBcv < 500.00) {
       usdBcv = 515.18;
       eurBcv = 601.45;
       usdParalelo = 520.33;
     }
 
-    console.log(`[MONITOR 2026] 💰 Despachando tasas reales: BCV $${usdBcv} | BCV €${eurBcv} | Paralelo $${usdParalelo}`);
-
     res.status(200).json({
-      rate: usdBcv, // El Frontend usa esto para la base de liquidación
+      rate: usdBcv, 
       dolar_bcv: usdBcv,
       euro_bcv: eurBcv,
       dolar_paralelo: usdParalelo,

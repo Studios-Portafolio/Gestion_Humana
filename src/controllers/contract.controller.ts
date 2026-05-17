@@ -3,17 +3,15 @@ import { PrismaClient } from '@prisma/client';
 import { generateLegalContract } from '../services/ai.service';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import crypto from 'crypto';
+import { encryptData, decryptData } from '../utils/crypto.util';
 
 const prisma = new PrismaClient();
 
 export const createContract = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    // Soportamos cualquier variante de envío de IDs del frontend
     const { employeeId, userId, id, uuid, role, salary, currency, country } = req.body;
     let targetId = employeeId || userId || id || uuid;
 
-    // RESPALDO DE SEGURIDAD PARA PRUEBAS: Si Harvein no adjuntó el ID en la petición,
-    // extraemos el último usuario registrado en Postgres de manera automática para no romper la UX
     if (!targetId) {
       const lastEmployee = await prisma.user.findFirst({
         orderBy: { createdAt: 'desc' }
@@ -21,7 +19,7 @@ export const createContract = async (req: AuthenticatedRequest, res: Response): 
       if (lastEmployee) {
         targetId = lastEmployee.id;
       } else {
-        res.status(400).json({ error: 'No se detectó ningún ID de empleado en el cuerpo ni en la base de datos.' });
+        res.status(400).json({ error: 'No se detectó ningún ID de empleado.' });
         return;
       }
     }
@@ -37,6 +35,7 @@ export const createContract = async (req: AuthenticatedRequest, res: Response): 
     const finalSalary = salary ? Number(salary) : 100;
     const finalCurrency = currency || 'USD';
 
+    // 1. Generamos el contrato con Gemini
     const contractContent = await generateLegalContract(
       employee.fullName,
       finalRole,
@@ -50,12 +49,16 @@ export const createContract = async (req: AuthenticatedRequest, res: Response): 
       return;
     }
 
+    // 2. Calculamos la huella digital criptográfica (Hash) basándonos en el texto original y legal
     const documentHash = crypto.createHash('sha256').update(contractContent).digest('hex');
+
+    // 3. CIFRAMOS EL DOCUMENTO (Para que nadie pueda leerlo en la Base de Datos)
+    const encryptedContent = encryptData(contractContent);
 
     const newContract = await prisma.contract.create({
       data: {
         userId: employee.id,
-        content: contractContent,
+        content: encryptedContent, // Guardamos la versión cifrada
         documentHash: documentHash,
         status: 'DRAFT',
       },
@@ -70,9 +73,9 @@ export const createContract = async (req: AuthenticatedRequest, res: Response): 
       }
     });
 
-    // Retorno plano con alias para acoplarse con cualquier desestructuración del front
+    // Devolvemos el contenido limpio (desencriptado) a Harvein para que lo renderice en pantalla sin problemas
     res.status(201).json({
-      message: 'Contrato generado exitosamente',
+      message: 'Contrato generado y cifrado exitosamente en BD',
       content: contractContent,
       contractContent: contractContent,
       documentHash: documentHash,
@@ -103,7 +106,13 @@ export const getContracts = async (req: AuthenticatedRequest, res: Response): Pr
       orderBy: { createdAt: 'desc' }
     });
 
-    res.status(200).json({ contracts });
+    // DESCIFRAMOS AL VUELO: Le devolvemos el array a Harvein con los contratos desencriptados
+    const decryptedContracts = contracts.map((contract: any) => ({
+      ...contract,
+      content: decryptData(contract.content)
+    }));
+
+    res.status(200).json({ contracts: decryptedContracts });
   } catch (error) {
     console.error('Error al obtener contratos:', error);
     res.status(500).json({ error: 'Error al obtener los contratos' });
