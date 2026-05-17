@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client'; // CORRECCIÓN: Eliminamos la importación de 'Role' que causaba el conflicto
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -7,13 +7,12 @@ export const getAllEmployees = async (req: Request, res: Response): Promise<void
   try {
     const users = await prisma.user.findMany();
 
-    // Sincronizado con Dashboard.jsx: Mapeamos los estados exactos que Harvein filtra
     const formattedEmployees = users.map((user: any) => ({
       uuid: user.id.toString(),
       name: user.fullName || 'Empleado Sin Nombre',
       role: user.role === 'ADMIN' ? 'Administrador SIACC & IT' : user.role === 'HR_MANAGER' ? 'HR Manager' : 'Tech Lead & Backend',
       dept: user.dept,
-      status: user.status.charAt(0) + user.status.slice(1).toLowerCase() // Transforma "REPOSO" a "Reposo", "VACACIONES" a "Vacaciones"
+      status: user.status.charAt(0) + user.status.slice(1).toLowerCase() 
     }));
 
     res.status(200).json(formattedEmployees);
@@ -59,7 +58,68 @@ export const getEmployeeById = async (req: Request, res: Response): Promise<void
   }
 };
 
-// Procesa los cambios en caliente del modal interactivo (PUT /api/employees/:id)
+// NUEVA FUNCIÓN: Guarda de forma física el registro enviado desde Onboarding.jsx (POST /api/employees)
+export const createEmployee = async (req: any, res: Response): Promise<void> => {
+  try {
+    const { name, cedula, cumple, email, status, role, dept } = req.body;
+
+    if (!email || !name) {
+      res.status(400).json({ error: 'El correo electrónico y el nombre completo son campos obligatorios.' });
+      return;
+    }
+
+    // Mapeo adaptativo de roles de texto hacia el Enum estricto de tu Prisma Schema
+    let finalRole = 'EMPLOYEE';
+    if (role) {
+      if (role.toUpperCase().includes('ADMIN')) finalRole = 'ADMIN';
+      else if (role.toUpperCase().includes('HR') || role.toUpperCase().includes('MANAGER')) finalRole = 'HR_MANAGER';
+    }
+
+    // Usamos Upsert para evitar errores de clave duplicada si el correo ya existe en Neon DB
+    const newEmployee = await prisma.user.upsert({
+      where: { email: email },
+      update: {
+        fullName: name,
+        idNumber: cedula,
+        birthDate: cumple,
+        status: status ? status.toUpperCase() : 'ACTIVO',
+        role: finalRole as any,
+        dept: dept || 'General',
+        isActive: status ? status.toUpperCase() === 'ACTIVO' : true
+      },
+      create: {
+        email: email,
+        fullName: name,
+        idNumber: cedula,
+        birthDate: cumple,
+        status: status ? status.toUpperCase() : 'ACTIVO',
+        role: finalRole as any,
+        dept: dept || 'General',
+        isActive: status ? status.toUpperCase() === 'ACTIVO' : true
+      }
+    });
+
+    if (req.user?.id) {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: `MANUAL_EMPLOYEE_CREATION_SUCCESS_EMAIL_${email}`,
+          ipAddress: req.ip || req.socket.remoteAddress || 'unknown',
+          endpoint: 'POST /api/employees',
+        }
+      });
+    }
+
+    res.status(201).json({
+      message: 'Expediente creado y guardado exitosamente en Postgres.',
+      employee: newEmployee
+    });
+  } catch (error: any) {
+    console.error('Error crítico al insertar empleado en la DB:', error.message || error);
+    res.status(500).json({ error: 'Error interno del búnker al intentar almacenar el expediente.' });
+  }
+};
+
 export const updateEmployee = async (req: any, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
@@ -71,7 +131,6 @@ export const updateEmployee = async (req: any, res: Response): Promise<void> => 
       return;
     }
 
-    // CORRECCIÓN: Cambiamos el tipo a 'string' para evadir el bloqueo del compilador local
     let updatedRole: string = userExists.role;
     if (role) {
       if (role.toUpperCase().includes('ADMIN')) updatedRole = 'ADMIN';
@@ -82,7 +141,7 @@ export const updateEmployee = async (req: any, res: Response): Promise<void> => 
     const updatedUser = await prisma.user.update({
       where: { id },
       data: {
-        role: updatedRole as any, // Hacemos un bypass seguro hacia Prisma
+        role: updatedRole as any, 
         dept: dept || userExists.dept,
         status: status ? status.toUpperCase() : userExists.status,
         isActive: status ? status.toUpperCase() === 'ACTIVO' : userExists.isActive
