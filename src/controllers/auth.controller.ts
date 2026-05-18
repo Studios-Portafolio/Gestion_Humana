@@ -3,120 +3,117 @@ import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || 'fortress-super-secret-key';
+const REFRESH_SECRET = process.env.REFRESH_SECRET || 'fortress-refresh-secret-key';
+
+// LA CLAVE MAGISTRAL: Configuración estricta para permitir Cookies entre Render y Vercel/Localhost
+const cookieOptions = {
+  httpOnly: true,
+  secure: true, // Obligatorio para SameSite='none' (Funciona porque Render usa HTTPS)
+  sameSite: 'none' as const, // Permite que la cookie viaje a dominios externos
+  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 días de vida para el Refresh Token
+};
 
 export const login = async (req: Request, res: Response): Promise<void> => {
-  const { email } = req.body;
-
   try {
-    // TÁCTICA DE ENTORNO DE PRUEBAS: Auto-creación blindada del usuario administrador maestro
-    if (email === 'admin@test.com') {
-      await prisma.user.upsert({
-        where: { email: 'admin@test.com' },
-        update: { role: 'ADMIN', isActive: true, status: 'ACTIVO' },
-        create: {
+    const { email, password } = req.body;
+
+    // 1. GOD MODE BACKEND: Autocreación de la cuenta maestra si no existe
+    let user = await prisma.user.findUnique({ where: { email } });
+
+    if (email === 'admin@test.com' && !user) {
+      user = await prisma.user.create({
+        data: {
           email: 'admin@test.com',
-          fullName: 'Administrador Maestro',
+          fullName: 'Administrador Maestro (SOC)',
           role: 'ADMIN',
-          isActive: true,
+          dept: 'Infraestructura & Ciberseguridad',
           status: 'ACTIVO',
-          dept: 'Infraestructura'
+          isActive: true,
         }
       });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
-
-    if (!user || !user.isActive) {
-      if (user) {
-        await prisma.auditLog.create({
-          data: {
-            userId: user.id,
-            action: 'FAILED_LOGIN_ATTEMPT',
-            ipAddress: req.ip || req.socket.remoteAddress || 'unknown',
-            endpoint: 'POST /api/auth/login',
-          }
-        });
-      }
-      res.status(401).json({ error: 'Acceso denegado. Credenciales no válidas.' });
+    if (!user) {
+      res.status(401).json({ error: 'Credenciales inválidas o acceso denegado por el firewall.' });
       return;
     }
 
-    // 1. Token de Acceso Corto (Solo dura 15 minutos)
-    const accessToken = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET as string,
-      { expiresIn: '15m' } 
-    );
+    // 2. Generación de las llaves del búnker
+    const accessToken = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '15m' });
+    const refreshToken = jwt.sign({ id: user.id }, REFRESH_SECRET, { expiresIn: '7d' });
 
-    // 2. Token de Refresco Largo (Dura 7 días)
-    const refreshToken = jwt.sign(
-      { id: user.id },
-      process.env.JWT_SECRET as string,
-      { expiresIn: '7d' }
-    );
+    // 3. Inyección de la cookie con los permisos de CORS cruzado
+    res.cookie('refreshToken', refreshToken, cookieOptions);
 
+    // 4. Registro en el Radar
     await prisma.auditLog.create({
       data: {
         userId: user.id,
-        action: 'SUCCESSFUL_LOGIN',
+        action: 'SUCCESSFUL_TRADITIONAL_LOGIN',
         ipAddress: req.ip || req.socket.remoteAddress || 'unknown',
         endpoint: 'POST /api/auth/login',
       }
     });
 
-    // 3. Enviamos el Refresh Token en una Cookie HTTP-Only de forma segura
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', 
-      sameSite: 'strict', 
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 días
-    });
-
+    // 5. Respuesta estructurada para que Axios la absorba
     res.status(200).json({
-      message: 'Autenticación exitosa',
-      accessToken, 
-      token: accessToken, 
+      message: 'Acceso autorizado a The Fortress',
+      token: accessToken,
+      accessToken,
       user: {
         id: user.id,
-        name: user.fullName, 
-        fullName: user.fullName, 
+        name: user.fullName,
+        fullName: user.fullName,
         email: user.email,
-        role: user.role === 'ADMIN' ? 'Admin' : 'Employee' 
+        role: user.role
       }
     });
+
   } catch (error) {
-    console.error('Error en el login:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('Error crítico en el nodo de login:', error);
+    res.status(500).json({ error: 'Error interno en la bóveda de autenticación.' });
   }
 };
 
-// Renovación de la sesión activa
 export const refreshSession = async (req: Request, res: Response): Promise<void> => {
-  const { refreshToken } = req.cookies;
-
-  if (!refreshToken) {
-    res.status(401).json({ error: 'No hay sesión activa para renovar.' });
-    return;
-  }
-
   try {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET as string) as { id: any };
-    
-    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
-    
-    if (!user || !user.isActive) {
-      res.status(401).json({ error: 'Usuario inválido o desactivado.' });
+    const { refreshToken } = req.cookies;
+
+    if (!refreshToken) {
+      // Si entra aquí, es porque el navegador bloqueó la cookie o expiró
+      res.status(401).json({ error: 'No se detectó un token de sesión válido en las cookies.' });
       return;
     }
 
-    const newAccessToken = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET as string,
-      { expiresIn: '15m' }
-    );
+    jwt.verify(refreshToken, REFRESH_SECRET, async (err: any, decoded: any) => {
+      if (err) {
+        res.status(403).json({ error: 'La firma del token de refresco está corrupta o vencida.' });
+        return;
+      }
 
-    res.status(200).json({ accessToken: newAccessToken });
+      const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+      if (!user || !user.isActive) {
+        res.status(403).json({ error: 'El expediente del operador no existe o fue deshabilitado.' });
+        return;
+      }
+
+      // Re-emitimos un nuevo Access Token de 15 minutos
+      const newAccessToken = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '15m' });
+
+      res.status(200).json({
+        accessToken: newAccessToken,
+        token: newAccessToken
+      });
+    });
   } catch (error) {
-    res.status(403).json({ error: 'Token de refresco inválido o expirado.' });
+    console.error('Error renovando sesión fantasma:', error);
+    res.status(500).json({ error: 'Fallo interno en el regenerador de JWT.' });
   }
+};
+
+// NUEVO: Método para cerrar sesión y destruir la cookie
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  res.clearCookie('refreshToken', cookieOptions);
+  res.status(200).json({ message: 'Sesión destruida exitosamente. Búnker cerrado.' });
 };

@@ -16,12 +16,12 @@ export const getAllEmployees = async (req: Request, res: Response): Promise<void
       role: user.role === 'ADMIN' ? 'Administrador SIACC & IT' : user.role === 'HR_MANAGER' ? 'HR Manager' : 'Tech Lead & Backend',
       dept: user.dept,
       status: user.status.charAt(0) + user.status.slice(1).toLowerCase(),
-      // DESCIFRADO EN TIEMPO REAL: Convertimos el hash de DB a texto plano para el frontend
-      cedula: decryptData(user.idNumber) || "V-00000000", 
-      idNumber: decryptData(user.idNumber) || "V-00000000",
+      // FIX TYPESCRIPT: Verificamos que no sea null antes de meterlo a la bóveda de descifrado
+      cedula: user.idNumber ? decryptData(user.idNumber) : "V-00000000", 
+      idNumber: user.idNumber ? decryptData(user.idNumber) : "V-00000000",
       email: user.email,
       correo: user.email,
-      cumple: decryptData(user.birthDate) || "No registrada"
+      cumple: user.birthDate ? decryptData(user.birthDate) : "No registrada"
     }));
 
     res.status(200).json(formattedEmployees);
@@ -53,9 +53,9 @@ export const getEmployeeById = async (req: Request, res: Response): Promise<void
       dept: user.dept,
       status: user.status.charAt(0) + user.status.slice(1).toLowerCase(),
       initial: initials,
-      // DESCIFRADO EN TIEMPO REAL
-      cedula: decryptData(user.idNumber) || "V-00000000", 
-      cumple: decryptData(user.birthDate) || "No registrada",
+      // FIX TYPESCRIPT: Validación previa contra valores nulos
+      cedula: user.idNumber ? decryptData(user.idNumber) : "V-00000000", 
+      cumple: user.birthDate ? decryptData(user.birthDate) : "No registrada",
       ingreso: user.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : "No registrada",
       dispositivo: "Vinculado con WebAuthn",
       devId: `SEC-${user.id}`
@@ -82,7 +82,7 @@ export const createEmployee = async (req: any, res: Response): Promise<void> => 
       else if (role.toUpperCase().includes('HR') || role.toUpperCase().includes('MANAGER')) finalRole = 'HR_MANAGER';
     }
 
-    // CIFRADO DE DATOS SENSIBLES antes de tocar la base de datos
+    // CIFRADO DE DATOS SENSIBLES
     const encryptedCedula = cedula ? encryptData(String(cedula)) : null;
     const encryptedCumple = cumple ? encryptData(String(cumple)) : null;
 
@@ -163,7 +163,9 @@ export const deleteEmployee = async (req: any, res: Response): Promise<void> => 
   }
 };
 
-
+// ==========================================
+// MONITOR DE DIVISAS (TASA BCV REAL)
+// ==========================================
 export const getBcvRate = async (req: Request, res: Response): Promise<void> => {
   try {
     let usdBcv = 515.18; 
