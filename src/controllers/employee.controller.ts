@@ -82,7 +82,6 @@ export const createEmployee = async (req: any, res: Response): Promise<void> => 
       else if (role.toUpperCase().includes('HR') || role.toUpperCase().includes('MANAGER')) finalRole = 'HR_MANAGER';
     }
 
-    // CIFRADO DE DATOS SENSIBLES
     const encryptedCedula = cedula ? encryptData(String(cedula)) : null;
     const encryptedCumple = cumple ? encryptData(String(cumple)) : null;
 
@@ -160,6 +159,35 @@ export const deleteEmployee = async (req: any, res: Response): Promise<void> => 
     res.status(200).json({ message: 'Expediente eliminado exitosamente.' });
   } catch (error: any) {
     res.status(500).json({ error: 'Error interno del búnker al intentar remover el expediente.' });
+  }
+};
+
+// ==========================================
+// NUEVO ENDPOINT: EXPORTADOR DE EXCEL / CSV PARA PC
+// ==========================================
+export const exportEmployeesToExcel = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const employees = await prisma.user.findMany();
+    const rateBcv = 515.18; 
+
+    let csvString = "\uFEFF"; 
+    csvString += "UUID EXPEDIENTE,COLABORADOR,CORREO CENTRAL,CÉDULA DE IDENTIDAD,DEPARTAMENTO,CARGO CORPORATIVO,ESTATUS LABORAL,SUELDO INDEXADO (USD),LIQUIDACIÓN BASE (BS BCV)\n";
+
+    employees.forEach((emp: any) => {
+      const plainCedula = emp.idNumber ? decryptData(emp.idNumber) : "No registrada";
+      const sueldoUSD = 650.00; 
+      const sueldoBS = (sueldoUSD * rateBcv).toFixed(2);
+      const cleanName = (emp.fullName || 'Sin Nombre').replace(/,/g, ''); 
+
+      csvString += `"${emp.id}","${cleanName}","${emp.email}","${plainCedula}","${emp.dept}","${emp.role}","${emp.status}",${sueldoUSD},${sueldoBS}\n`;
+    });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=Fortress_Nomina_SOC_2026.csv');
+    res.status(200).send(csvString);
+  } catch (error) {
+    console.error('Fallo en el exportador analítico:', error);
+    res.status(500).json({ error: 'Error interno del servidor al compilar la sábana de Excel.' });
   }
 };
 

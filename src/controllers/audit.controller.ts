@@ -1,48 +1,65 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 
 const prisma = new PrismaClient();
 
-export const getAuditLogs = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getAuditLogs = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Consultamos la tabla real de logs e incluimos los datos del usuario que gatilló la acción
     const logs = await prisma.auditLog.findMany({
-      include: {
-        user: {
-          select: {
-            fullName: true,
-            email: true,
-            role: true
-          }
-        }
+      include: { 
+        user: { 
+          select: { fullName: true, email: true, role: true } 
+        } 
       },
-      orderBy: {
-        timestamp: 'desc' // Los eventos más recientes aparecen primero en el radar
-      }
+      // CORRECCIÓN PRISMA: Cambiamos 'createdAt' por 'timestamp'. 
+      // (Si en tu schema.prisma se llama distinto, ajústalo aquí)
+      orderBy: { timestamp: 'desc' }, 
+      take: 150 
     });
 
-    // Formateamos la respuesta para que Harvein la reciba limpia y estructurada
-    const formattedLogs = logs.map((log: any) => ({
-      id: log.id,
-      timestamp: log.timestamp,
-      endpoint: log.endpoint,
-      ipAddress: log.ipAddress,
-      action: log.action,
-      operator: log.user ? {
-        name: log.user.fullName,
-        email: log.user.email,
-        role: log.user.role
-      } : {
-        name: "SISTEMA_CORE",
-        email: "internal@thefortress.com",
-        role: "SYSTEM"
-      }
-    }));
+    const enhancedLogs = logs.map((log: any) => {
+      let severity = 'INFO';
+      let uiColor = '#10b981'; // Verde esmeralda
+      let alertLevel = 'NORMAL';
 
-    res.status(200).json(formattedLogs);
-  } catch (error: any) {
-    console.error('Error al extraer logs de auditoría:', error);
-    res.status(500).json({ error: 'Error interno al consultar la bitácora de auditoría de la base de datos.' });
+      const actionUpper = log.action.toUpperCase();
+
+      if (actionUpper.includes('DELETE') || actionUpper.includes('FAIL') || actionUpper.includes('PURGA') || actionUpper.includes('INTRUDER')) {
+        severity = 'CRITICAL';
+        uiColor = '#ef4444'; // Rojo sangre
+        alertLevel = 'ALTO RIESGO';
+      } 
+      else if (actionUpper.includes('UPDATE') || actionUpper.includes('GENERATE') || actionUpper.includes('STEP_UP')) {
+        severity = 'WARNING';
+        uiColor = '#f59e0b'; // Naranja/Amarillo
+        alertLevel = 'ELEVADO';
+      }
+
+      return {
+        id: log.id,
+        operator: log.user ? log.user.fullName : 'Sistema / Desconocido',
+        operatorRole: log.user ? log.user.role : 'GHOST',
+        operatorEmail: log.user ? log.user.email : 'N/A',
+        action: log.action,
+        ip: log.ipAddress === '::1' ? '127.0.0.1 (Local)' : log.ipAddress,
+        // CORRECCIÓN PRISMA: Aquí también usamos 'timestamp' en vez de 'createdAt'
+        timestamp: new Date(log.timestamp).toLocaleString('es-VE', { timeZone: 'America/Caracas' }),
+        securityMatrix: {
+          severityCode: severity,
+          hexColor: uiColor,
+          alertTag: alertLevel
+        }
+      };
+    });
+
+    res.status(200).json({ 
+      radarStatus: 'ONLINE',
+      totalLogs: enhancedLogs.length,
+      logs: enhancedLogs 
+    });
+
+  } catch (error) {
+    console.error('[SOC RADAR] Error al compilar la bitácora:', error);
+    res.status(500).json({ error: 'Fallo crítico al extraer los registros del búnker.' });
   }
 };
